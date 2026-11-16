@@ -1,0 +1,951 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Incident Response | Panic Button Operations Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #06080e;
+      --panel-bg: rgba(14, 20, 33, 0.65);
+      --panel-border: rgba(255, 255, 255, 0.08);
+      --panel-hover: rgba(22, 31, 52, 0.75);
+      --glass-blur: blur(20px);
+      
+      --armed-color: #10b981;
+      --armed-glow: rgba(16, 185, 129, 0.35);
+      --armed-bg: rgba(16, 185, 129, 0.12);
+
+      --incident-color: #ef4444;
+      --incident-glow: rgba(239, 68, 68, 0.5);
+      --incident-bg: rgba(239, 68, 68, 0.15);
+
+      --unknown-color: #f59e0b;
+      --unknown-glow: rgba(245, 158, 11, 0.3);
+      --unknown-bg: rgba(245, 158, 11, 0.12);
+
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent: #38bdf8;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      overflow-x: hidden;
+      transition: background-color 0.6s ease;
+    }
+
+    /* Ambient background lighting */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -15%;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 900px;
+      height: 500px;
+      background: radial-gradient(ellipse at center, rgba(56, 189, 248, 0.08) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+      transition: all 0.6s ease;
+    }
+
+    body.state-incident::before {
+      background: radial-gradient(ellipse at center, rgba(239, 68, 68, 0.22) 0%, transparent 70%);
+      animation: alertAmbient 2s infinite alternate;
+    }
+
+    body.state-armed::before {
+      background: radial-gradient(ellipse at center, rgba(16, 185, 129, 0.15) 0%, transparent 70%);
+    }
+
+    @keyframes alertAmbient {
+      0% { opacity: 0.6; transform: translateX(-50%) scale(1); }
+      100% { opacity: 1; transform: translateX(-50%) scale(1.15); }
+    }
+
+    /* Subtle futuristic grid pattern overlay */
+    .grid-overlay {
+      position: fixed;
+      inset: 0;
+      background-image: 
+        linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Container layout */
+    .dashboard-container {
+      position: relative;
+      z-index: 1;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 30px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 28px;
+      background: var(--panel-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--panel-border);
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .brand-icon {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+    }
+
+    .brand-icon svg {
+      width: 24px;
+      height: 24px;
+      fill: none;
+      stroke: var(--accent);
+      stroke-width: 2;
+    }
+
+    .brand-titles h1 {
+      font-size: 1.35rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: #fff;
+    }
+
+    .brand-titles p {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .system-health {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .polling-tag {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--panel-border);
+      border-radius: 30px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .ping-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--accent);
+      box-shadow: 0 0 10px var(--accent);
+      animation: pingGlow 1.5s infinite;
+    }
+
+    @keyframes pingGlow {
+      0%, 100% { opacity: 0.4; transform: scale(0.9); }
+      50% { opacity: 1; transform: scale(1.2); }
+    }
+
+    .refresh-btn {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid var(--panel-border);
+      color: var(--text-main);
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.25s ease;
+    }
+
+    .refresh-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    .refresh-btn svg {
+      width: 14px;
+      height: 14px;
+      transition: transform 0.4s ease;
+    }
+
+    .refresh-btn.spinning svg {
+      transform: rotate(360deg);
+    }
+
+    /* Main Status Display Hero Card */
+    .hero-status-card {
+      background: var(--panel-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--panel-border);
+      border-radius: 24px;
+      padding: 48px 36px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+      transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .hero-status-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: 24px;
+      pointer-events: none;
+      box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.1);
+    }
+
+    /* Status Glow Beacon */
+    .beacon-wrapper {
+      position: relative;
+      width: 140px;
+      height: 140px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+
+    .beacon-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      opacity: 0;
+      transition: all 0.5s ease;
+    }
+
+    .beacon-center {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255, 255, 255, 0.05);
+      transition: all 0.5s ease;
+      z-index: 2;
+    }
+
+    .beacon-center svg {
+      width: 38px;
+      height: 38px;
+      transition: all 0.5s ease;
+    }
+
+    /* State: ARMED & SAFE */
+    .state-armed .hero-status-card {
+      border-color: rgba(16, 185, 129, 0.3);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 35px rgba(16, 185, 129, 0.15);
+    }
+
+    .state-armed .beacon-center {
+      background: var(--armed-bg);
+      border: 2px solid var(--armed-color);
+      box-shadow: 0 0 25px var(--armed-glow);
+    }
+
+    .state-armed .beacon-center svg {
+      stroke: var(--armed-color);
+      filter: drop-shadow(0 0 8px var(--armed-color));
+    }
+
+    .state-armed .beacon-ring {
+      border-color: var(--armed-color);
+      animation: pulseGreen 2.8s infinite ease-out;
+    }
+
+    @keyframes pulseGreen {
+      0% { transform: scale(0.7); opacity: 0.8; }
+      50% { opacity: 0.4; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+
+    /* State: INCIDENT ACTIVE */
+    .state-incident .hero-status-card {
+      border-color: rgba(239, 68, 68, 0.45);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), 0 0 60px rgba(239, 68, 68, 0.3);
+      animation: alertBorderFlash 1.6s infinite alternate;
+    }
+
+    @keyframes alertBorderFlash {
+      0% { border-color: rgba(239, 68, 68, 0.35); }
+      100% { border-color: rgba(239, 68, 68, 0.8); }
+    }
+
+    .state-incident .beacon-center {
+      background: var(--incident-bg);
+      border: 2px solid var(--incident-color);
+      box-shadow: 0 0 35px var(--incident-glow);
+    }
+
+    .state-incident .beacon-center svg {
+      stroke: var(--incident-color);
+      filter: drop-shadow(0 0 10px var(--incident-color));
+    }
+
+    .state-incident .beacon-ring {
+      border-color: var(--incident-color);
+      animation: pulseRed 1.2s infinite cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    @keyframes pulseRed {
+      0% { transform: scale(0.65); opacity: 1; }
+      100% { transform: scale(1.85); opacity: 0; }
+    }
+
+    /* State: UNKNOWN */
+    .state-unknown .beacon-center {
+      background: var(--unknown-bg);
+      border: 2px solid var(--unknown-color);
+      box-shadow: 0 0 20px var(--unknown-glow);
+    }
+    .state-unknown .beacon-center svg {
+      stroke: var(--unknown-color);
+    }
+    .state-unknown .beacon-ring {
+      border-color: var(--unknown-color);
+      animation: pulseGreen 3s infinite ease-out;
+    }
+
+    /* Status Label & Title */
+    .status-eyebrow {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      font-weight: 600;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+
+    .status-title {
+      font-size: 3.2rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 14px;
+      transition: color 0.4s ease;
+    }
+
+    .state-armed .status-title {
+      color: var(--armed-color);
+      text-shadow: 0 0 30px rgba(16, 185, 129, 0.4);
+    }
+
+    .state-incident .status-title {
+      color: var(--incident-color);
+      text-shadow: 0 0 35px rgba(239, 68, 68, 0.5);
+      animation: incidentFlicker 2s infinite ease-in-out;
+    }
+
+    @keyframes incidentFlicker {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.85; }
+    }
+
+    .state-unknown .status-title {
+      color: var(--unknown-color);
+      text-shadow: 0 0 25px rgba(245, 158, 11, 0.3);
+    }
+
+    .status-description {
+      font-size: 1.05rem;
+      color: var(--text-muted);
+      max-width: 580px;
+      line-height: 1.5;
+    }
+
+    /* Metrics Grid */
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 20px;
+    }
+
+    .glass-card {
+      background: var(--panel-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+      transition: transform 0.25s ease, border-color 0.25s ease;
+    }
+
+    .glass-card:hover {
+      border-color: rgba(255, 255, 255, 0.16);
+      transform: translateY(-2px);
+    }
+
+    .card-label {
+      font-size: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card-label svg {
+      width: 14px;
+      height: 14px;
+      stroke: var(--accent);
+      fill: none;
+    }
+
+    .card-value {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--text-main);
+      font-family: 'JetBrains Mono', monospace;
+      word-break: break-all;
+    }
+
+    .card-subtext {
+      font-size: 0.8rem;
+      color: var(--text-dim);
+      margin-top: 6px;
+    }
+
+    /* Architecture Flow Banner */
+    .pipeline-card {
+      background: var(--panel-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .pipeline-steps {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .pipe-node {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid var(--panel-border);
+      padding: 7px 14px;
+      border-radius: 10px;
+      font-size: 0.8rem;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+    }
+
+    .pipe-node.active {
+      border-color: rgba(56, 189, 248, 0.4);
+      color: var(--text-main);
+      background: rgba(56, 189, 248, 0.08);
+    }
+
+    .pipe-arrow {
+      color: var(--text-dim);
+      font-size: 0.85rem;
+    }
+
+    /* Raw Payload Panel */
+    .payload-card {
+      background: var(--panel-bg);
+      backdrop-filter: var(--glass-blur);
+      -webkit-backdrop-filter: var(--glass-blur);
+      border: 1px solid var(--panel-border);
+      border-radius: 18px;
+      padding: 20px 24px;
+    }
+
+    .payload-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .payload-header h3 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .code-container {
+      background: #090d16;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.82rem;
+      color: #cbd5e1;
+      overflow-x: auto;
+      max-height: 240px;
+    }
+
+    footer {
+      text-align: center;
+      padding: 24px 0 10px;
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    footer a {
+      color: var(--text-muted);
+      text-decoration: none;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .dashboard-container {
+        padding: 16px 12px;
+        gap: 16px;
+      }
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 18px;
+      }
+      .system-health {
+        width: 100%;
+        justify-content: space-between;
+      }
+      .status-title {
+        font-size: 2.3rem;
+      }
+      .hero-status-card {
+        padding: 36px 18px;
+      }
+      .pipeline-steps {
+        font-size: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body class="state-unknown">
+
+  <div class="grid-overlay"></div>
+
+  <div class="dashboard-container">
+
+    <!-- Header -->
+    <header>
+      <div class="brand-group">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+          </svg>
+        </div>
+        <div class="brand-titles">
+          <h1>AWS Incident Response System</h1>
+          <p>Panic Button Real-time Telemetry Dashboard</p>
+        </div>
+      </div>
+
+      <div class="system-health">
+        <div class="polling-tag">
+          <div class="ping-dot" id="pingIndicator"></div>
+          <span id="syncText">SYNCING (3s)</span>
+        </div>
+        <button class="refresh-btn" id="manualRefreshBtn" title="Force refresh immediately">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+          </svg>
+          Sync Now
+        </button>
+      </div>
+    </header>
+
+    <!-- Hero Card: Real-time Device State -->
+    <section class="hero-status-card" id="statusCard">
+      <div class="beacon-wrapper">
+        <div class="beacon-ring"></div>
+        <div class="beacon-center">
+          <svg id="statusIcon" viewBox="0 0 24 24" fill="none" stroke-width="2">
+            <!-- Dynamic Icon content -->
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      </div>
+
+      <div class="status-eyebrow">Device Condition</div>
+      <div class="status-title" id="statusTitle">CONNECTING...</div>
+      <p class="status-description" id="statusDesc">
+        Polling AWS serverless architecture for latest incident state...
+      </p>
+    </section>
+
+    <!-- Metrics Grid -->
+    <section class="metrics-grid">
+      <!-- Last Updated -->
+      <div class="glass-card">
+        <div class="card-label">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          Last Updated
+        </div>
+        <div class="card-value" id="lastUpdatedValue">--</div>
+        <div class="card-subtext" id="relativeTime">Waiting for data...</div>
+      </div>
+
+      <!-- Target Device ID -->
+      <div class="glass-card">
+        <div class="card-label">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z"/></svg>
+          Monitored Device
+        </div>
+        <div class="card-value" id="deviceIdValue">panic-button-01</div>
+        <div class="card-subtext">Partition Key: deviceId</div>
+      </div>
+
+      <!-- Cloud Infrastructure -->
+      <div class="glass-card">
+        <div class="card-label">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 00-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
+          AWS Region & Stack
+        </div>
+        <div class="card-value">ap-southeast-2</div>
+        <div class="card-subtext">Sydney, Australia (Serverless)</div>
+      </div>
+
+      <!-- Action State -->
+      <div class="glass-card">
+        <div class="card-label">
+          <svg viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+          Last Reported Action
+        </div>
+        <div class="card-value" id="actionValue">STANDBY</div>
+        <div class="card-subtext" id="actionSubtext">Mutual TLS MQTT Trigger</div>
+      </div>
+    </section>
+
+    <!-- Pipeline Architecture -->
+    <section class="pipeline-card">
+      <div style="font-size: 0.8rem; font-family: 'JetBrains Mono', monospace; color: var(--text-dim); text-transform: uppercase;">
+        Event Flow:
+      </div>
+      <div class="pipeline-steps">
+        <div class="pipe-node active">
+          <span>Virtual Simulator</span>
+        </div>
+        <span class="pipe-arrow">➜</span>
+        <div class="pipe-node active">
+          <span>AWS IoT Core</span>
+        </div>
+        <span class="pipe-arrow">➜</span>
+        <div class="pipe-node active">
+          <span>DynamoDB (PanicButtonState)</span>
+        </div>
+        <span class="pipe-arrow">➜</span>
+        <div class="pipe-node active">
+          <span>Lambda (PanicGetter)</span>
+        </div>
+        <span class="pipe-arrow">➜</span>
+        <div class="pipe-node active">
+          <span>Live Dashboard</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Live Telemetry JSON Inspector -->
+    <section class="payload-card">
+      <div class="payload-header" onclick="togglePayload()">
+        <h3>Raw DynamoDB Telemetry (Lambda Response)</h3>
+        <span id="toggleText" style="font-size: 0.78rem; font-family: 'JetBrains Mono', monospace; color: var(--accent);">[COLLAPSE]</span>
+      </div>
+      <div class="code-container" id="codeContainer">
+        <pre><code id="jsonDisplay">Loading telemetry payload...</code></pre>
+      </div>
+    </section>
+
+    <footer>
+      Serverless Incident Response System &bull; AWS Lambda Function URL Powered &bull; Region: ap-southeast-2
+    </footer>
+
+  </div>
+
+  <script>
+    // Configuration
+    const LAMBDA_URL = "https://rfbtrjjsgccqgjnh52vlslcjee0pvjug.lambda-url.ap-southeast-2.on.aws/";
+    const POLL_INTERVAL_MS = 3000;
+
+    // DOM Elements
+    const body = document.body;
+    const statusTitle = document.getElementById("statusTitle");
+    const statusDesc = document.getElementById("statusDesc");
+    const statusIcon = document.getElementById("statusIcon");
+    const lastUpdatedValue = document.getElementById("lastUpdatedValue");
+    const relativeTime = document.getElementById("relativeTime");
+    const deviceIdValue = document.getElementById("deviceIdValue");
+    const actionValue = document.getElementById("actionValue");
+    const actionSubtext = document.getElementById("actionSubtext");
+    const jsonDisplay = document.getElementById("jsonDisplay");
+    const syncText = document.getElementById("syncText");
+    const manualRefreshBtn = document.getElementById("manualRefreshBtn");
+    const pingIndicator = document.getElementById("pingIndicator");
+
+    let lastRecordDate = null;
+    let isFetching = false;
+
+    // Helper: Formatter for ISO string or timestamps
+    function formatLastUpdated(timestampValue) {
+      if (!timestampValue || timestampValue === "N/A") {
+        return { formatted: "Initial State (N/A)", dateObj: null };
+      }
+
+      let dateObj;
+      if (typeof timestampValue === "number") {
+        // Handle Unix timestamp (in seconds or milliseconds)
+        dateObj = new Date(timestampValue > 1e11 ? timestampValue : timestampValue * 1000);
+      } else if (typeof timestampValue === "string") {
+        // Try parsing ISO string
+        dateObj = new Date(timestampValue);
+        // Fallback if string is numeric
+        if (isNaN(dateObj.getTime()) && !isNaN(Number(timestampValue))) {
+          const num = Number(timestampValue);
+          dateObj = new Date(num > 1e11 ? num : num * 1000);
+        }
+      }
+
+      if (!dateObj || isNaN(dateObj.getTime())) {
+        return { formatted: String(timestampValue), dateObj: null };
+      }
+
+      // Nice clean human-readable date format
+      const options = {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true
+      };
+
+      return {
+        formatted: dateObj.toLocaleString(undefined, options),
+        dateObj: dateObj
+      };
+    }
+
+    // Helper: Relative time calculation ("5s ago", "Just now")
+    function updateRelativeTime() {
+      if (!lastRecordDate) {
+        relativeTime.innerText = "No incident recorded yet";
+        return;
+      }
+
+      const now = new Date();
+      const diffSec = Math.floor((now - lastRecordDate) / 1000);
+
+      if (diffSec < 0 || diffSec < 2) {
+        relativeTime.innerText = "Updated just now";
+      } else if (diffSec < 60) {
+        relativeTime.innerText = `Updated ${diffSec}s ago`;
+      } else if (diffSec < 3600) {
+        const mins = Math.floor(diffSec / 60);
+        relativeTime.innerText = `Updated ${mins} min${mins > 1 ? "s" : ""} ago`;
+      } else {
+        const hrs = Math.floor(diffSec / 3600);
+        relativeTime.innerText = `Updated ${hrs} hour${hrs > 1 ? "s" : ""} ago`;
+      }
+    }
+
+    // Update UI based on fetched data
+    function applyStateToUI(data) {
+      const rawStatus = (data.status || "UNKNOWN").toUpperCase();
+      const rawAction = data.action || data.actionType || "STANDBY";
+      const devId = data.deviceId || "panic-button-01";
+      
+      // Determine date from lastUpdated or timestamp
+      const timestampRaw = data.lastUpdated && data.lastUpdated !== "N/A" 
+        ? data.lastUpdated 
+        : data.timestamp;
+
+      const { formatted, dateObj } = formatLastUpdated(timestampRaw);
+      lastRecordDate = dateObj;
+
+      // Update Device and Action cards
+      deviceIdValue.innerText = devId;
+      actionValue.innerText = rawAction;
+      lastUpdatedValue.innerText = formatted;
+      updateRelativeTime();
+
+      // Update JSON preview
+      jsonDisplay.textContent = JSON.stringify(data, null, 2);
+
+      // Reset base class
+      body.className = "";
+
+      if (rawStatus === "INCIDENT_ACTIVE") {
+        body.classList.add("state-incident");
+        statusTitle.innerText = "INCIDENT ACTIVE";
+        statusDesc.innerText = "EMERGENCY ALERT: Hardware panic trigger received! Incident response procedures initiated.";
+        actionSubtext.innerText = "CRITICAL: Button Pressed";
+        
+        // Exclamation triangle alert icon
+        statusIcon.innerHTML = `
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        `;
+      } else if (rawStatus === "ARMED") {
+        body.classList.add("state-armed");
+        statusTitle.innerText = "ARMED & SAFE";
+        statusDesc.innerText = "All perimeter panic monitors are armed and operational. No active emergency detected.";
+        actionSubtext.innerText = "Normal Supervisory Monitoring";
+
+        // Shield checkmark icon
+        statusIcon.innerHTML = `
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        `;
+      } else {
+        body.classList.add("state-unknown");
+        statusTitle.innerText = rawStatus || "UNKNOWN";
+        statusDesc.innerText = "Device state unknown or uninitialized in DynamoDB. Awaiting trigger signal.";
+        actionSubtext.innerText = "Awaiting initial event";
+
+        // Question mark / Clock icon
+        statusIcon.innerHTML = `
+          <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        `;
+      }
+    }
+
+    // Data Fetcher
+    async function fetchPanicStatus() {
+      if (isFetching) return;
+      isFetching = true;
+
+      const refreshIcon = manualRefreshBtn.querySelector("svg");
+      manualRefreshBtn.classList.add("spinning");
+      syncText.innerText = "FETCHING...";
+
+      try {
+        const response = await fetch(LAMBDA_URL, {
+          method: "GET",
+          headers: {
+            "Accept": "application/json"
+          },
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP Error: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        applyStateToUI(data);
+
+        const now = new Date();
+        syncText.innerText = `LIVE (${now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })})`;
+      } catch (err) {
+        console.error("Telemetry fetch error:", err);
+        syncText.innerText = "SYNC FAILED";
+        relativeTime.innerText = `Fetch error: ${err.message}`;
+      } finally {
+        isFetching = false;
+        manualRefreshBtn.classList.remove("spinning");
+      }
+    }
+
+    // Toggle raw payload panel
+    function togglePayload() {
+      const container = document.getElementById("codeContainer");
+      const toggleText = document.getElementById("toggleText");
+      if (container.style.display === "none") {
+        container.style.display = "block";
+        toggleText.innerText = "[COLLAPSE]";
+      } else {
+        container.style.display = "none";
+        toggleText.innerText = "[EXPAND]";
+      }
+    }
+
+    // Event Listeners
+    manualRefreshBtn.addEventListener("click", () => {
+      fetchPanicStatus();
+    });
+
+    // Relative time ticker (every second)
+    setInterval(updateRelativeTime, 1000);
+
+    // Main telemetry poll (every 3 seconds)
+    setInterval(fetchPanicStatus, POLL_INTERVAL_MS);
+
+    // Initial fetch on page load
+    window.addEventListener("DOMContentLoaded", () => {
+      fetchPanicStatus();
+    });
+  </script>
+</body>
+</html>
